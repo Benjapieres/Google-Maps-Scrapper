@@ -113,13 +113,13 @@ def scrape_places(search_for: str, total: int) -> List[Place]:
     places: List[Place] = []
     with sync_playwright() as p:
         if platform.system() == "Windows":
-            browser_path = r"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+            browser_path = r"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe"
             browser = p.chromium.launch(executable_path=browser_path, headless=False)
         else:
             browser = p.chromium.launch(headless=False)
         page = browser.new_page()
         try:
-            page.goto("https://www.google.com/maps/@32.9817464,70.1930781,3.67z?", timeout=60000)
+            page.goto("https://www.google.com/maps/@33.6207562,72.7564306,10z?", timeout=60000)
             page.wait_for_timeout(1000)
             page.locator('//input[@id="searchboxinput"]').fill(search_for)
             page.keyboard.press("Enter")
@@ -131,6 +131,11 @@ def scrape_places(search_for: str, total: int) -> List[Place]:
                 page.wait_for_selector('//a[contains(@href, "https://www.google.com/maps/place")]')
                 found = page.locator('//a[contains(@href, "https://www.google.com/maps/place")]').count()
                 logging.info(f"Currently Found: {found}")
+                if found < total:
+                    time.sleep(2)
+                    page.mouse.wheel(0, 10000)
+                    found = page.locator('//a[contains(@href, "https://www.google.com/maps/place")]').count()
+
                 if found >= total:
                     break
                 if found == previously_counted:
@@ -140,7 +145,7 @@ def scrape_places(search_for: str, total: int) -> List[Place]:
             listings = page.locator('//a[contains(@href, "https://www.google.com/maps/place")]').all()[:total]
             listings = [listing.locator("xpath=..") for listing in listings]
             logging.info(f"Total Found: {len(listings)}")
-            for idx, listing in enumerate(listings):
+            for i, listing in enumerate(listings):
                 try:
                     listing.click()
                     page.wait_for_selector('//div[@class="TIHn2 "]//h1[@class="DUwDvf lfPIob"]', timeout=10000)
@@ -149,9 +154,9 @@ def scrape_places(search_for: str, total: int) -> List[Place]:
                     if place.name:
                         places.append(place)
                     else:
-                        logging.warning(f"No name found for listing {idx+1}, skipping.")
+                        logging.warning(f"No name found for listing {i+1}, skipping.")
                 except Exception as e:
-                    logging.warning(f"Failed to extract listing {idx+1}: {e}")
+                    logging.warning(f"Failed to extract listing {i+1}: {e}")
         finally:
             browser.close()
     return places

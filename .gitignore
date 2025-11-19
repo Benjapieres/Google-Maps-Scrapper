@@ -1,5 +1,2 @@
-__pycache__/
-*.pyc
-result.csv
-output.csv
-playwright/.cache/ 
+# Created by venv; see https://docs.python.org/3/library/venv.html
+*
