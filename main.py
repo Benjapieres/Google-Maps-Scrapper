@@ -8,6 +8,7 @@ import argparse
 import platform
 import time
 import os
+from urllib.parse import quote_plus
 
 # ============================================================================
 # Open/Closed Principle (SOLID) - Browser Configuration Strategy
@@ -29,8 +30,8 @@ class BrowserConfig(ABC):
         pass
 
     @abstractmethod
-    def get_cookie_button_text(self) -> str:
-        """Retorna el texto del botón de cookies según el idioma."""
+    def get_cookie_button_text(self) -> List[str]:
+        """Retorna lista de textos del botón de cookies según el idioma (múltiples idiomas para mayor兼容性)."""
         pass
 
 
@@ -43,11 +44,11 @@ class WindowsBrowserConfig(BrowserConfig):
         return {"executable_path": self.CHROME_PATH, "headless": False}
 
     def get_search_url(self, query: str) -> str:
-        # Original: navegación por input
-        return "https://www.google.com/maps/@32.9817464,70.1930781,3.67z?"
+        encoded = quote_plus(query)
+        return f"https://www.google.com/maps/search/{encoded}"
 
-    def get_cookie_button_text(self) -> str:
-        return "Accept all"  # Inglés
+    def get_cookie_button_text(self) -> List[str]:
+        return ["Accept all", "Aceptar todo", "Aceitar tudo"]
 
 
 class LinuxBrowserConfig(BrowserConfig):
@@ -70,11 +71,15 @@ class LinuxBrowserConfig(BrowserConfig):
 
     def get_search_url(self, query: str) -> str:
         # Optimizado: navegación directa a URL de búsqueda
-        encoded = query.replace(" ", "+")
+        encoded = quote_plus(query)
         return f"https://www.google.com/maps/search/{encoded}"
 
-    def get_cookie_button_text(self) -> str:
-        return "Aceptar todo"  # Español
+    def get_cookie_button_text(self) -> List[str]:
+        return [
+            "Aceptar todo",
+            "Accept all",
+            "Aceitar tudo",
+        ]
 
 
 class MacBrowserConfig(BrowserConfig):
@@ -84,11 +89,15 @@ class MacBrowserConfig(BrowserConfig):
         return {"headless": False}
 
     def get_search_url(self, query: str) -> str:
-        encoded = query.replace(" ", "+")
+        encoded = quote_plus(query)
         return f"https://www.google.com/maps/search/{encoded}"
 
-    def get_cookie_button_text(self) -> str:
-        return "Accept all"
+    def get_cookie_button_text(self) -> List[str]:
+        return [
+            "Accept all",
+            "Aceptar todo",
+            "Aceitar tudo",
+        ]
 
 
 def get_browser_config() -> BrowserConfig:
@@ -247,15 +256,22 @@ def scrape_places(search_for: str, total: int) -> List[Place]:
 
             # Manejo automático del popup de cookies (usa abstracción)
             try:
-                accept_btn = page.locator(f'button:has-text("{cookie_button_text}")')
-                if accept_btn.count() > 0:
-                    accept_btn.first.click(timeout=5000)
-                    logging.info("✅ Popup de cookies aceptado automáticamente")
-                    page.wait_for_timeout(2000)
-            except:
-                pass  # No había popup o ya estaba aceptado
+                accepted = False
+                for btn_text in cookie_button_text:
+                    accept_btn = page.locator(f'button:has-text("{btn_text}")')
+                    if accept_btn.count() > 0:
+                        accept_btn.first.click(timeout=5000)
+                        logging.info("Popup de cookies aceptado automaticamente")
+                        page.wait_for_timeout(2000)
+                        accepted = True
+                        break
+                if not accepted:
+                    logging.info("No se encontró boton de cookies - continuando")
+            except Exception as e:
+                logging.warning(f"Error al manejar popup de cookies: {e}")
 
             # Scroll para cargar resultados
+            page.wait_for_timeout(2500)
             previously_counted = 0
             while True:
                 page.mouse.wheel(0, 8000)
